@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>本文取り込みエディタ | Text Importer Editor</title>
+  <!-- Quill 1.3.7 (安定版・豊富なドキュメント) -->
+  <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- ヘッダー -->
+    <header class="header">
+      <div class="header-left">
+        <button id="btn-load-file" class="btn btn-primary" title="PDFまたはTXTファイルを読み込む">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+            <polyline points="14 2 14 8 20 8"></polyline>
+            <line x1="12" y1="18" x2="12" y2="12"></line>
+            <line x1="9" y1="15" x2="15" y2="15"></line>
+          </svg>
+          本文から取り込み
+        </button>
+        <input type="file" id="file-input" accept=".txt,.pdf,text/plain,application/pdf" hidden>
+        <span id="file-name" class="file-name"></span>
+      </div>
+      <div class="header-center">
+        <h1 class="app-title">本文取り込みエディタ</h1>
+      </div>
+      <div class="header-right">
+        <button id="btn-save" class="btn btn-secondary" title="ローカルに保存">💾 保存</button>
+        <button id="btn-export-html" class="btn btn-secondary" title="HTMLとしてダウンロード">📄 HTML</button>
+        <button id="btn-export-txt" class="btn btn-secondary" title="テキストとしてダウンロード">📝 TXT</button>
+        <button id="btn-clear" class="btn btn-danger" title="内容をクリア">🗑 クリア</button>
+        <button id="btn-toggle-left" class="btn btn-icon" title="目次パネル切替">☰</button>
+        <button id="btn-toggle-right" class="btn btn-icon" title="サイドパネル切替">⚙</button>
+      </div>
+    </header>
+
+    <!-- メインエリア -->
+    <div class="main-container">
+      <!-- 左サイドバー: 目次 -->
+      <aside id="left-panel" class="panel left-panel">
+        <div class="panel-header">
+          <h2>目次</h2>
+          <button id="btn-refresh-toc" class="btn-icon-sm" title="目次を更新">↻</button>
+        </div>
+        <nav id="toc" class="toc">
+          <p class="toc-empty">見出しを追加するとここに表示されます</p>
+        </nav>
+        <div class="panel-footer">
+          <small>クリックで該当箇所へジャンプ</small>
+        </div>
+      </aside>
+
+      <!-- 中央: リッチテキストエディタ -->
+      <main class="editor-area">
+        <div id="editor-toolbar"></div>
+        <div id="editor" class="editor"></div>
+        <div class="editor-status">
+          <span id="char-count">0 文字</span>
+          <span id="save-status">未保存</span>
+        </div>
+      </main>
+
+      <!-- 右サイドバー: 設定・概要・TODO -->
+      <aside id="right-panel" class="panel right-panel">
+        <div class="panel-header">
+          <h2>ツール & 設定</h2>
+        </div>
+        
+        <div class="panel-section">
+          <h3>概要メモ</h3>
+          <textarea id="overview" class="side-textarea" placeholder="シナリオ概要やメモをここに記入..."></textarea>
+        </div>
+
+        <div class="panel-section">
+          <h3>想定設定</h3>
+          <textarea id="assumptions" class="side-textarea" placeholder="PL人数、所要時間、雰囲気など..."></textarea>
+        </div>
+
+        <div class="panel-section">
+          <h3>TODOリスト</h3>
+          <div class="todo-input-row">
+            <input type="text" id="todo-input" placeholder="新しいTODOを追加..." />
+            <button id="btn-add-todo" class="btn btn-sm">+</button>
+          </div>
+          <ul id="todo-list" class="todo-list"></ul>
+        </div>
+
+        <div class="panel-section">
+          <h3>表示設定</h3>
+          <div class="setting-row">
+            <label for="code-bg-color">コードブロック背景色</label>
+            <input type="color" id="code-bg-color" value="#23241f" />
+          </div>
+          <div class="setting-row">
+            <label for="code-text-color">コードブロック文字色</label>
+            <input type="color" id="code-text-color" value="#f8f8f2" />
+          </div>
+          <div class="setting-row">
+            <label for="editor-font-size">エディタ文字サイズ</label>
+            <select id="editor-font-size">
+              <option value="14px">14px</option>
+              <option value="16px" selected>16px</option>
+              <option value="18px">18px</option>
+              <option value="20px">20px</option>
+              <option value="22px">22px</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label>
+              <input type="checkbox" id="auto-save" checked />
+              自動保存 (30秒ごと)
+            </label>
+          </div>
+        </div>
+
+        <div class="panel-section help-section">
+          <h3>使い方</h3>
+          <ul class="help-list">
+            <li>左上の「本文から取り込み」でPDF/TXTを読み込み</li>
+            <li>ツールバーで太字・斜体・色・コードブロックを適用</li>
+            <li>すべてローカル保存のみ（サーバー送信なし）</li>
+            <li>iPadでも動作（タッチ対応）</li>
+          </ul>
+        </div>
+      </aside>
+    </div>
+
+    <!-- ローディングオーバーレイ -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+      <div class="spinner"></div>
+      <p id="loading-text">ファイルを読み込み中...</p>
+    </div>
+
+    <!-- トースト通知 -->
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <!-- PDF.js (安定版 2.16 系 - クラシックスクリプトで扱いやすい) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+  <!-- Quill -->
+  <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
