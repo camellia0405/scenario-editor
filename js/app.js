@@ -538,9 +538,8 @@
 
   /**
    * 「名前を付けて保存」
-   * Chrome / Edge など File System Access API 対応ブラウザでは保存先を指定可能
-   * 非対応ブラウザでは JSON ダウンロードにフォールバック
-   */
+   **/
+
   async function saveAll() {
     if (!quill) return;
 
