@@ -158,9 +158,14 @@
       }, 800);
     });
 
-    // コードブロック用コピーボタンの初期適用
-    // ※ MutationObserver は大きな書式変更時に無限ループ化するため使わない
+    // コードブロック用コピーボタン（エディタ外オーバーレイ）
     attachCodeBlockCopyButtons();
+    quill.root.addEventListener('scroll', () => {
+      updateFloatingCopyButtons();
+    });
+    window.addEventListener('resize', () => {
+      updateFloatingCopyButtons();
+    });
 
     // 初期フォーカス
     quill.focus();
@@ -193,68 +198,80 @@
     // ブロック書式は formatLine が正しい（delete+insert だと行が割れる）
     quill.formatLine(start, length, 'code-block', enable);
 
-    // Quill が DOM を描き直したあとにコピーボタンを付け直す
-    requestAnimationFrame(() => {
-      setTimeout(attachCodeBlockCopyButtons, 50);
-    });
+    requestAnimationFrame(updateFloatingCopyButtons);
   }
 
   const COPY_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
   const CHECK_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
 
-  let attachingCodeBtns = false;
+  let floatCopyLayer = null;
 
-  // ===== コードブロック右上にコピーボタンを追加 =====
-  function attachCodeBlockCopyButtons() {
-    if (!quill || attachingCodeBtns) return;
-    attachingCodeBtns = true;
-    try {
-      const pres = quill.root.querySelectorAll('pre.ql-syntax, pre');
-      pres.forEach((pre) => {
-        if (pre.querySelector('.code-copy-btn')) return;
-        pre.style.position = 'relative';
-
-        const btn = document.createElement('button');
-        btn.className = 'code-copy-btn';
-        btn.type = 'button';
-        btn.title = 'コピー';
-        btn.innerHTML = COPY_ICON;
-        pre.appendChild(btn);
-      });
-    } finally {
-      attachingCodeBtns = false;
-    }
+  function getFloatCopyLayer() {
+    if (floatCopyLayer && document.body.contains(floatCopyLayer)) return floatCopyLayer;
+    const container = document.querySelector('.ql-container') || document.querySelector('.editor-area');
+    if (!container) return null;
+    container.classList.add('has-copy-layer');
+    floatCopyLayer = document.createElement('div');
+    floatCopyLayer.className = 'code-copy-layer';
+    container.appendChild(floatCopyLayer);
+    return floatCopyLayer;
   }
 
-  // コピーはイベント委任（ブロックごとの listener を増やさない）
-  document.addEventListener('click', async (e) => {
-    const btn = e.target.closest && e.target.closest('.code-copy-btn');
-    if (!btn) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const pre = btn.closest('pre');
-    if (!pre) return;
-    const text = (pre.innerText || pre.textContent || '').replace(/\s*コピー\s*$/, '');
-    try {
-      await navigator.clipboard.writeText(text);
-    } catch (err) {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.left = '-9999px';
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    }
-    btn.classList.add('copied');
-    btn.innerHTML = CHECK_ICON;
-    showToast('コードをコピーしました', 'success', 1500);
-    setTimeout(() => {
-      btn.classList.remove('copied');
+  function updateFloatingCopyButtons() {
+    if (!quill) return;
+    const layer = getFloatCopyLayer();
+    if (!layer) return;
+
+    const container = layer.parentElement;
+    const contRect = container.getBoundingClientRect();
+    const pres = quill.root.querySelectorAll('pre');
+
+    layer.innerHTML = '';
+
+    pres.forEach((pre) => {
+      const preRect = pre.getBoundingClientRect();
+      if (preRect.bottom < contRect.top || preRect.top > contRect.bottom) return;
+
+      const btn = document.createElement('button');
+      btn.className = 'code-copy-btn code-copy-float';
+      btn.type = 'button';
+      btn.title = 'コピー';
       btn.innerHTML = COPY_ICON;
-    }, 1500);
-  });
+      btn.style.top = (preRect.top - contRect.top + 8) + 'px';
+      btn.style.left = (preRect.right - contRect.left - 36) + 'px';
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+      });
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const text = pre.innerText || pre.textContent || '';
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch (err) {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          document.body.removeChild(ta);
+        }
+        btn.classList.add('copied');
+        btn.innerHTML = CHECK_ICON;
+        showToast('コードをコピーしました', 'success', 1500);
+        setTimeout(() => {
+          btn.classList.remove('copied');
+          btn.innerHTML = COPY_ICON;
+        }, 1500);
+      });
+      layer.appendChild(btn);
+    });
+  }
+
+  function attachCodeBlockCopyButtons() {
+    updateFloatingCopyButtons();
+  }
 
   // ===== 目次生成 =====
   function updateTOC() {

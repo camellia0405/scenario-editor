@@ -326,6 +326,23 @@ html, body {
   position: relative;
 }
 
+/* コピーボタンは Quill 外のレイヤーに置く */
+.ql-container.has-copy-layer,
+.editor-area.has-copy-layer {
+  position: relative;
+}
+
+.code-copy-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 6;
+}
+
+.code-copy-float {
+  pointer-events: auto;
+}
+
 /* コードブロック右上のコピーボタン */
 .code-copy-btn {
   position: absolute;
