@@ -369,11 +369,112 @@
    * - 連続する空行のみ軽く整理（3行以上 → 2行）
    */
   function cleanImportedText(text) {
-    return text
+    const normalized = text
       .replace(/\r\n/g, '\n')
-      .replace(/\r/g, '\n')
-      .replace(/\n{3,}/g, '\n\n')  // 連続空行を最大2行までに制限
-      .trim();
+      .replace(/\r/g, '\n');
+    return reflowParagraphLines(normalized.split('\n')).join('\n').trim();
+  }
+
+  function countChar(str, ch) {
+    return (str.split(ch).length - 1);
+  }
+
+  function isInsideUnclosedQuote(str) {
+    return countChar(str, '「') > countChar(str, '」');
+  }
+
+  /** 1行で完結した短いセリフ・項目 */
+  function isCompleteShortQuote(line) {
+    return /^「[^「」]+」$/.test(line) && line.length <= 60;
+  }
+
+  /** 見出し・項目行とみなすか（途中切れの「… は含めない） */
+  function isHeadingOrItemLine(line) {
+    const t = (line || '').trim();
+    if (!t) return false;
+
+    // 途中で切れたセリフは見出しにしない
+    if (isInsideUnclosedQuote(t)) return false;
+
+    // 1行で完結したセリフは項目として行を維持
+    if (isCompleteShortQuote(t)) return true;
+
+    // 記号で始まる見出し・項目（「 は上で処理済み）
+    if (/^[◆■●▲▼★☆◇○◎□【『〈《〔]/.test(t)) return true;
+    if (/^※/.test(t) && t.length <= 40) return true;
+    if (/^[-・▪▫‣◦]/.test(t) && t.length <= 40) return true;
+    if (/^(第[0-9０-９一二三四五六七八九十百]+[章節項話]|[0-9０-９]+[\.．、\)）])/.test(t)) return true;
+    if (/^【.+】$/.test(t)) return true;
+    if (/^（※/.test(t) && t.length <= 80) return true;
+
+    // 短い括弧付きタイトル（◆以外の「名前（役職）」など）
+    if (
+      t.length <= 28 &&
+      !/[。！？!?．…]$/.test(t) &&
+      !/[、,]$/.test(t) &&
+      /[（(【]/.test(t) &&
+      !t.startsWith('「')
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * 本文は文末まで結合、未閉じの「」は閉じるまで結合
+   * 見出し・完結セリフは改行を維持
+   */
+  function reflowParagraphLines(lines) {
+    const sentenceEnd = /[。！？!?．…]$/;
+    const result = [];
+    let buffer = '';
+
+    const flush = () => {
+      if (buffer) {
+        result.push(buffer);
+        buffer = '';
+      }
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      const trimmed = lines[i].replace(/\s+$/, '').trim();
+
+      if (!trimmed) {
+        if (!isInsideUnclosedQuote(buffer)) {
+          flush();
+          if (result.length === 0 || result[result.length - 1] !== '') {
+            result.push('');
+          }
+        }
+        continue;
+      }
+
+      // セリフ未閉じの間は見出し判定せず結合
+      if (isInsideUnclosedQuote(buffer)) {
+        buffer += trimmed;
+        if (!isInsideUnclosedQuote(buffer)) flush();
+        continue;
+      }
+
+      if (isHeadingOrItemLine(trimmed)) {
+        flush();
+        result.push(trimmed);
+        continue;
+      }
+
+      buffer = buffer ? buffer + trimmed : trimmed;
+
+      if (isInsideUnclosedQuote(buffer)) continue;
+      if (sentenceEnd.test(buffer) || isCompleteShortQuote(buffer)) {
+        flush();
+      }
+    }
+
+    flush();
+    return result
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .split('\n');
   }
 
   /**
@@ -435,7 +536,7 @@
     }).promise;
 
     const numPages = pdf.numPages;
-    const ops = []; // Quill Delta ops
+    const rawLines = []; // { text, header }
     let bodyFontSizes = []; // 本文らしいフォントサイズを集計
 
     // まず全ページのフォントサイズを集めて、本文の標準サイズを推定
@@ -503,9 +604,9 @@
       }
 
       if (header) {
-        ops.push({ insert: lineText + '\n', attributes: { header } });
+        rawLines.push({ text: lineText, header });
       } else {
-        ops.push({ insert: lineText + '\n' });
+        rawLines.push({ text: lineText, header: false });
       }
 
       currentLine = [];
@@ -517,7 +618,7 @@
       if (item.page !== currentPage) {
         flushLine();
         if (currentPage !== 0) {
-          ops.push({ insert: '\n' });
+          rawLines.push({ text: '', header: false });
         }
         currentPage = item.page;
         lastY = null;
@@ -536,7 +637,34 @@
 
     flushLine();
 
-    // 末尾の余分な改行を整理
+    // 見出しは行を維持、本文は文末まで結合してから Delta 化
+    const ops = [];
+    let paraBuf = [];
+
+    function flushPara() {
+      if (paraBuf.length === 0) return;
+      const reflowed = reflowParagraphLines(paraBuf);
+      reflowed.forEach((line) => {
+        ops.push({ insert: (line || '') + '\n' });
+      });
+      paraBuf = [];
+    }
+
+    rawLines.forEach((row) => {
+      if (row.header) {
+        flushPara();
+        ops.push({ insert: row.text + '\n', attributes: { header: row.header } });
+        return;
+      }
+      if (isHeadingOrItemLine(row.text)) {
+        flushPara();
+        ops.push({ insert: row.text + '\n' });
+        return;
+      }
+      paraBuf.push(row.text);
+    });
+    flushPara();
+
     while (ops.length > 0 && ops[ops.length - 1].insert === '\n') {
       ops.pop();
     }
