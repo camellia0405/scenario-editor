@@ -503,12 +503,28 @@
           <path d="M5 7h8M5 10h5"></path>
         </svg>
       </button>
+      <button type="button" class="ql-unwrap-card-extra" title="判定カードを解除して文章に戻す">
+        <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4">
+          <rect x="2" y="3" width="14" height="12" rx="2"></rect>
+          <path d="M6 7l6 4M12 7l-6 4"></path>
+        </svg>
+      </button>
+      <button type="button" class="ql-unwrap-code-extra" title="コードブロックを解除する">
+        <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4">
+          <path d="M7 5L4 9l3 4M11 5l3 4-3 4"></path>
+          <path d="M5 5l8 8"></path>
+        </svg>
+      </button>
     `;
     toolbar.appendChild(group);
     const rubyBtn = group.querySelector('.ql-ruby-extra');
     const cardBtn = group.querySelector('.ql-card-extra');
+    const unwrapCardBtn = group.querySelector('.ql-unwrap-card-extra');
+    const unwrapCodeBtn = group.querySelector('.ql-unwrap-code-extra');
     if (rubyBtn) rubyBtn.addEventListener('click', applyRuby);
     if (cardBtn) cardBtn.addEventListener('click', applyCheckCard);
+    if (unwrapCardBtn) unwrapCardBtn.addEventListener('click', unwrapCheckCardFromSelection);
+    if (unwrapCodeBtn) unwrapCodeBtn.addEventListener('click', unwrapCodeBlock);
   }
 
   function clearInlineFormats() {
