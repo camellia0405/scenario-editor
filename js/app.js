@@ -72,8 +72,52 @@
     saveStatusEl.style.color = '#059669';
   }
 
+  // ===== ふりがな（指定した文字だけ） =====
+  function registerRubyBlot() {
+    const Inline = Quill.import('blots/inline');
+    class RubyBlot extends Inline {
+      static create(value) {
+        const node = super.create();
+        node.setAttribute('data-rt', value || '');
+        return node;
+      }
+      static formats(node) {
+        return node.getAttribute('data-rt') || '';
+      }
+      format(name, value) {
+        if (name === RubyBlot.blotName) {
+          if (value) this.domNode.setAttribute('data-rt', value);
+          else this.unwrap();
+        } else {
+          super.format(name, value);
+        }
+      }
+    }
+    RubyBlot.blotName = 'ruby';
+    RubyBlot.tagName = 'SPAN';
+    RubyBlot.className = 'ql-ruby';
+    Quill.register(RubyBlot);
+  }
+
+  function applyRuby() {
+    if (!quill) return;
+    const range = quill.getSelection(true);
+    if (!range || range.length === 0) {
+      showToast('ふりがなを振る文字を選択してください', 'error', 2000);
+      return;
+    }
+    const current = quill.getFormat(range);
+    const existing = typeof current.ruby === 'string' ? current.ruby : '';
+    const rt = window.prompt('読み仮名を入力してください（空欄で解除）', existing);
+    if (rt === null) return;
+    const value = rt.trim();
+    quill.formatText(range.index, range.length, 'ruby', value || false, 'user');
+    markDirty();
+  }
+
   // ===== Quill 初期化 =====
   function initQuill() {
+    registerRubyBlot();
     const toolbarOptions = [
       [{ header: [1, 2, 3, 4, 5, false] }],
       ['bold', 'italic', 'underline', 'strike'],
@@ -709,7 +753,7 @@
     };
   }
 
-  /** localStorage への自動保存用（従来どおり） */
+  /** ブラウザ内バックアップ（手動保存時・復元時） */
   function saveToLocalStorage() {
     if (!quill) return;
     try {
@@ -964,8 +1008,6 @@ ${quill.root.innerHTML}
   const codeBgInput = $('#code-bg-color');
   const codeTextInput = $('#code-text-color');
   const fontSizeSelect = $('#editor-font-size');
-  const autoSaveCheck = $('#auto-save'); // 自動保存は無効化（UI削除）
-
   function applyCodeColors() {
     document.documentElement.style.setProperty('--code-bg', codeBgInput.value);
     document.documentElement.style.setProperty('--code-text', codeTextInput.value);
@@ -989,8 +1031,7 @@ ${quill.root.innerHTML}
     const s = {
       codeBg: codeBgInput.value,
       codeText: codeTextInput.value,
-      fontSize: fontSizeSelect.value,
-      autoSave: false
+      fontSize: fontSizeSelect.value
     };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   }
@@ -1006,14 +1047,15 @@ ${quill.root.innerHTML}
         fontSizeSelect.value = s.fontSize;
         if (quill) quill.root.style.fontSize = s.fontSize;
       }
-      // 自動保存は無効のため設定を復元しない
-      applyCodeColors();
+applyCodeColors();
     } catch (e) {}
   }
 
   // ===== 保存ボタン =====
   $('#btn-save').addEventListener('click', saveAll);
   $('#btn-open-file').addEventListener('click', openSavedFile);
+  const btnRuby = $('#btn-ruby');
+  if (btnRuby) btnRuby.addEventListener('click', applyRuby);
 
   // ===== 検索・置換 =====
   const findBar = $('#find-bar');
@@ -1189,7 +1231,6 @@ ${quill.root.innerHTML}
     }
   });
 
-  // 概要・想定も変更検知
   // ===== 初期化 =====
   function init() {
     initQuill();
@@ -1205,12 +1246,10 @@ ${quill.root.innerHTML}
     } catch (e) {}
     updateTOC();
 
-    // ページ離脱警告
+    // ページ離脱警告（未保存時）
     window.addEventListener('beforeunload', (e) => {
-      if (isDirty) {
-        e.preventDefault();
-        e.returnValue = '';
-      }
+      if (!isDirty) return;
+      e.preventDefault();
     });
 
     // キーボードショートカット
@@ -1229,6 +1268,11 @@ ${quill.root.innerHTML}
       if (mod && (e.key === 'h' || e.key === 'H')) {
         e.preventDefault();
         openFindBar(true);
+        return;
+      }
+      if (mod && e.altKey && (e.key === 'r' || e.key === 'R')) {
+        e.preventDefault();
+        applyRuby();
         return;
       }
       if (e.key === 'F3') {
