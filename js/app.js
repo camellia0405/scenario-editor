@@ -108,12 +108,7 @@
   }
 
   function normalizeCheckTitle(text) {
-    return String(text || '')
-      .replace(/\r\n/g, '\n')
-      .trim()
-      .replace(/^[＜<]\s*/, '')
-      .replace(/\s*[＞>]$/, '')
-      .trim() || '判定';
+    return String(text || '').replace(/\r\n/g, '\n').trim() || '判定';
   }
 
   function syncCheckCardPayload(card) {
@@ -122,7 +117,7 @@
     const successEl = card.querySelector('[data-field="success"]');
     const failEl = card.querySelector('[data-field="fail"]');
     const data = {
-      title: (titleEl ? titleEl.textContent : '').replace(/^[＜<]/, '').replace(/[＞>]$/, '').trim(),
+      title: titleEl ? titleEl.textContent.trim() : '',
       lead: '',
       success: successEl ? (successEl.innerText || '').replace(/\u00a0/g, ' ').trim() : '',
       fail: failEl ? (failEl.innerText || '').replace(/\u00a0/g, ' ').trim() : ''
@@ -146,7 +141,7 @@
 
     node.innerHTML = `
       <div class="check-card-header">
-        <span class="check-card-title">&lt;${escapeHtml(data.title || '判定')}&gt;</span>
+        <span class="check-card-title">${escapeHtml(data.title || '判定')}</span>
         <button type="button" class="check-copy" data-copy="title" title="見出しをコピー">${copySvg}</button>
       </div>
       <div class="check-card-row success">
@@ -1190,13 +1185,13 @@ applyCodeColors();
     let text = '';
     if (kind === 'success') text = payload.success || '';
     else if (kind === 'fail') text = payload.fail || '';
-    else if (kind === 'title') text = payload.title ? `＜${payload.title}＞` : '';
+    else if (kind === 'title') text = payload.title || '';
     else {
       text = [
-        payload.title ? `＜${payload.title}＞` : '',
+        payload.title || '',
         payload.success ? `成功：${payload.success}` : '成功：',
         payload.fail ? `失敗：${payload.fail}` : '失敗：'
-      ].filter(Boolean).join('\n');
+      ].filter((v) => v !== '').join('\n');
     }
     copyTextSafe(text).then(() => showToast('コピーしました', 'success', 1400));
   });
