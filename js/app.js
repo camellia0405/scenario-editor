@@ -365,6 +365,9 @@
             // 大きな選択範囲のコードブロック化を軽量化
             'code-block': function () {
               applyCodeBlockLight();
+            },
+            clean: function () {
+              clearInlineFormats();
             }
           }
         },
@@ -453,8 +456,72 @@
       updateFloatingCopyButtons();
     });
 
+    addCustomToolbarButtons();
+    const cleanBtn = document.querySelector('.ql-clean');
+    if (cleanBtn) {
+      cleanBtn.setAttribute('title', '書式クリア（太字・色・ふりがななどを解除）');
+    }
+
     // 初期フォーカス
     quill.focus();
+  }
+
+  function addCustomToolbarButtons() {
+    const toolbar = document.querySelector('.ql-toolbar');
+    if (!toolbar || toolbar.querySelector('.ql-extra-formats')) return;
+
+    const titles = {
+      '.ql-bold': '太字 (Ctrl+B)',
+      '.ql-italic': '斜体 (Ctrl+I)',
+      '.ql-underline': '下線 (Ctrl+U)',
+      '.ql-strike': '取り消し線',
+      '.ql-blockquote': '引用',
+      '.ql-code-block': 'コードブロック',
+      '.ql-link': 'リンク',
+      '.ql-list[value="ordered"]': '番号付きリスト',
+      '.ql-list[value="bullet"]': '箇条書き',
+      '.ql-indent[value="-1"]': 'インデント解除',
+      '.ql-indent[value="+1"]': 'インデント'
+    };
+    Object.keys(titles).forEach((sel) => {
+      const el = toolbar.querySelector(sel);
+      if (el) el.setAttribute('title', titles[sel]);
+    });
+
+    const group = document.createElement('span');
+    group.className = 'ql-formats ql-extra-formats';
+    group.innerHTML = `
+      <button type="button" class="ql-ruby-extra" title="ふりがな（選択した文字に読みを付ける）">
+        <svg viewBox="0 0 18 18" width="18" height="18">
+          <text x="1" y="16" font-size="11" font-family="sans-serif" font-weight="700">あ</text>
+          <text x="10" y="8" font-size="6" font-family="sans-serif">あ</text>
+        </svg>
+      </button>
+      <button type="button" class="ql-card-extra" title="判定カード（選択した文字を見出しにする）">
+        <svg viewBox="0 0 18 18" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.4">
+          <rect x="2" y="3" width="14" height="12" rx="2"></rect>
+          <path d="M5 7h8M5 10h5"></path>
+        </svg>
+      </button>
+    `;
+    toolbar.appendChild(group);
+    const rubyBtn = group.querySelector('.ql-ruby-extra');
+    const cardBtn = group.querySelector('.ql-card-extra');
+    if (rubyBtn) rubyBtn.addEventListener('click', applyRuby);
+    if (cardBtn) cardBtn.addEventListener('click', applyCheckCard);
+  }
+
+  function clearInlineFormats() {
+    if (!quill) return;
+    const range = quill.getSelection(true);
+    if (!range || range.length === 0) {
+      showToast('解除する文字を選択してください', 'error', 1800);
+      return;
+    }
+    quill.removeFormat(range.index, range.length, 'user');
+    quill.formatText(range.index, range.length, 'ruby', false, 'user');
+    markDirty();
+    showToast('書式を解除しました', 'success', 1400);
   }
 
   // ===== コードブロックを行単位で適用（先頭空行・末尾行のはみ出しを防ぐ） =====

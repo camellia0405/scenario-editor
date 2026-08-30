@@ -365,6 +365,22 @@ html, body {
   padding: 8px 12px ;
 }
 
+.ql-toolbar .ql-extra-formats button {
+  width: 28px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #444;
+}
+.ql-toolbar .ql-extra-formats button:hover {
+  color: #06c;
+}
+.ql-toolbar .ql-extra-formats svg {
+  display: block;
+}
+
 .ql-container.ql-snow {
   border: none ;
   flex: 1;
