@@ -525,6 +525,11 @@
     if (cardBtn) cardBtn.addEventListener('click', applyCheckCard);
     if (unwrapCardBtn) unwrapCardBtn.addEventListener('click', unwrapCheckCardFromSelection);
     if (unwrapCodeBtn) unwrapCodeBtn.addEventListener('click', unwrapCodeBlock);
+
+    const codeBtn = toolbar.querySelector('.ql-code-block');
+    if (codeBtn && unwrapCodeBtn) {
+      group.insertBefore(codeBtn, unwrapCodeBtn);
+    }
   }
 
   function clearInlineFormats() {
