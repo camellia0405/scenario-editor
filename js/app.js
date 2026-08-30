@@ -872,7 +872,28 @@
     }
 
     flush();
-    return result
+    const sentenceEndRe = /[。！？!?．…]$/;
+    const joined = [];
+    result.forEach((line) => {
+      const t = String(line);
+      if (t === '') {
+        joined.push('');
+        return;
+      }
+      const prev = joined.length ? joined[joined.length - 1] : null;
+      if (
+        prev &&
+        prev !== '' &&
+        !sentenceEndRe.test(prev) &&
+        !isHeadingOrItemLine(prev) &&
+        !isHeadingOrItemLine(t)
+      ) {
+        joined[joined.length - 1] = prev + t;
+      } else {
+        joined.push(t);
+      }
+    });
+    return joined
       .join('\n')
       .replace(/\n{3,}/g, '\n\n')
       .split('\n');
@@ -1065,6 +1086,38 @@
       paraBuf.push(row.text);
     });
     flushPara();
+
+    const sentenceEndRe = /[。！？!?．…]$/;
+    const mergedOps = [];
+    ops.forEach((op) => {
+      if (typeof op.insert !== 'string' || op.attributes) {
+        mergedOps.push(op);
+        return;
+      }
+      const prev = mergedOps[mergedOps.length - 1];
+      if (
+        prev &&
+        typeof prev.insert === 'string' &&
+        !prev.attributes &&
+        prev.insert.endsWith('\n')
+      ) {
+        const prevText = prev.insert.replace(/\n$/, '');
+        const curText = op.insert.replace(/\n$/, '');
+        if (
+          prevText &&
+          curText &&
+          !sentenceEndRe.test(prevText) &&
+          !isHeadingOrItemLine(prevText) &&
+          !isHeadingOrItemLine(curText)
+        ) {
+          prev.insert = prevText + curText + '\n';
+          return;
+        }
+      }
+      mergedOps.push(op);
+    });
+    ops.length = 0;
+    mergedOps.forEach((op) => ops.push(op));
 
     while (ops.length > 0 && ops[ops.length - 1].insert === '\n') {
       ops.pop();
