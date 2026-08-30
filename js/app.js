@@ -551,25 +551,29 @@
     const range = quill.getSelection(true);
     if (!range) return;
 
-    // 選択を行の先頭〜行末（改行含む）まで広げる
     const fullText = quill.getText();
     let start = range.index;
     let end = range.index + Math.max(range.length, 0);
 
+    // 選択が改行で終わっている場合、次の行まで広げない
+    if (range.length > 0) {
+      while (end > start && fullText.charAt(end - 1) === '\n') {
+        end--;
+      }
+    }
+
     while (start > 0 && fullText.charAt(start - 1) !== '\n') {
       start--;
     }
-    // 末尾が行の途中なら行末まで含める
-    if (end < fullText.length) {
-      const nextNl = fullText.indexOf('\n', end);
-      end = nextNl === -1 ? fullText.length : nextNl + 1;
+    // 末尾が行の途中なら、その行の末尾まで（次行は含めない）
+    while (end < fullText.length && fullText.charAt(end) !== '\n') {
+      end++;
     }
 
     const length = Math.max(end - start, 1);
-    const formats = quill.getFormat(start, length);
+    const formats = quill.getFormat(start, Math.min(length, 1));
     const enable = !formats['code-block'];
 
-    // ブロック書式は formatLine が正しい（delete+insert だと行が割れる）
     quill.formatLine(start, length, 'code-block', enable);
 
     requestAnimationFrame(updateFloatingCopyButtons);
