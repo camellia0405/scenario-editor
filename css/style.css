@@ -76,6 +76,7 @@ html, body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  text-shadow: 0 1px 2px rgb(255, 255, 255);
 }
 
 .file-name {
