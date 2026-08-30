@@ -13,6 +13,7 @@
   --primary-hover: #2563eb;
   --danger: #ef4444;
   --bg: #f8fafc;
+  --header-bg: #add8e6;
   --panel-bg: #ffffff;
   --border: #e2e8f0;
   --text: #1e293b;
@@ -42,7 +43,7 @@ html, body {
 /* ===== ヘッダー ===== */
 .header {
   height: var(--header-height);
-  background: var(--panel-bg);
+  background: var(--header-bg);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
