@@ -545,7 +545,7 @@ html, body {
 /* コードブロック色カスタム */
 .ql-snow .ql-editor pre.ql-syntax,
 .ql-snow .ql-editor pre {
-  max-width: 680px;
+  max-width: 740px;
   background-color: var(--code-bg) ;
   color: var(--code-text) ;
   border-radius: 6px;
