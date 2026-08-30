@@ -16,6 +16,7 @@
   --header-bg: #add8e6;
   --panel-bg: #ffffff;
   --border: #e2e8f0;
+  --title: #191970;
   --text: #1e293b;
   --text-muted: #64748b;
   --code-bg: #23241f;
@@ -71,7 +72,7 @@ html, body {
 .app-title {
   font-size: 1.1rem;
   font-weight: 600;
-  color: var(--text);
+  color: var(--title);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -79,7 +80,7 @@ html, body {
 
 .file-name {
   font-size: 0.85rem;
-  color: #00008b;
+  color: var(--text-muted);
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
