@@ -107,81 +107,58 @@
       .replace(/>/g, '&gt;');
   }
 
-  function parseCheckCardText(text) {
-    const lines = String(text).replace(/\r\n/g, '\n').split('\n');
-    let title = '';
-    let mode = 'lead';
-    const lead = [];
-    const success = [];
-    const fail = [];
+  function normalizeCheckTitle(text) {
+    return String(text || '')
+      .replace(/\r\n/g, '\n')
+      .trim()
+      .replace(/^[＜<]\s*/, '')
+      .replace(/\s*[＞>]$/, '')
+      .trim() || '判定';
+  }
 
-    lines.forEach((raw) => {
-      const line = raw.replace(/\s+$/, '');
-      const trimmed = line.trim();
-      const titleMatch = trimmed.match(/^[＜<]([^＞>]+)[＞>]$/);
-      if (titleMatch && !title) {
-        title = titleMatch[1].trim();
-        return;
-      }
-      if (/^成功[：:]/.test(trimmed)) {
-        mode = 'success';
-        const rest = trimmed.replace(/^成功[：:]\s*/, '');
-        if (rest) success.push(rest);
-        return;
-      }
-      if (/^失敗[：:]/.test(trimmed)) {
-        mode = 'fail';
-        const rest = trimmed.replace(/^失敗[：:]\s*/, '');
-        if (rest) fail.push(rest);
-        return;
-      }
-      if (mode === 'success') success.push(line);
-      else if (mode === 'fail') fail.push(line);
-      else if (trimmed) lead.push(line);
-    });
-
-    return {
-      title: title || '判定',
-      lead: lead.join('\n').trim(),
-      success: success.join('\n').trim(),
-      fail: fail.join('\n').trim()
+  function syncCheckCardPayload(card) {
+    if (!card) return;
+    const titleEl = card.querySelector('.check-card-title');
+    const successEl = card.querySelector('[data-field="success"]');
+    const failEl = card.querySelector('[data-field="fail"]');
+    const data = {
+      title: (titleEl ? titleEl.textContent : '').replace(/^[＜<]/, '').replace(/[＞>]$/, '').trim(),
+      lead: '',
+      success: successEl ? (successEl.innerText || '').replace(/\u00a0/g, ' ').trim() : '',
+      fail: failEl ? (failEl.innerText || '').replace(/\u00a0/g, ' ').trim() : ''
     };
+    card.dataset.payload = JSON.stringify(data);
+    return data;
   }
 
   function buildCheckCardNode(value, node) {
     const data = value || { title: '判定', lead: '', success: '', fail: '' };
     node.className = 'check-card';
     node.setAttribute('contenteditable', 'false');
-    node.dataset.payload = JSON.stringify(data);
+    node.dataset.payload = JSON.stringify({
+      title: data.title || '判定',
+      lead: '',
+      success: data.success || '',
+      fail: data.fail || ''
+    });
 
     const copySvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
 
-    const leadHtml = data.lead
-      ? `<div class="check-card-lead">${escapeHtml(data.lead).replace(/\n/g, '<br>')}</div>`
-      : '';
-    const successHtml = data.success
-      ? `<div class="check-card-row success">
-           <span class="check-badge success">成功</span>
-           <div class="check-card-body">${escapeHtml(data.success).replace(/\n/g, '<br>')}</div>
-           <button type="button" class="check-copy" data-copy="success" title="成功をコピー">${copySvg}</button>
-         </div>`
-      : '';
-    const failHtml = data.fail
-      ? `<div class="check-card-row fail">
-           <span class="check-badge fail">失敗</span>
-           <div class="check-card-body">${escapeHtml(data.fail).replace(/\n/g, '<br>')}</div>
-           <button type="button" class="check-copy" data-copy="fail" title="失敗をコピー">${copySvg}</button>
-         </div>`
-      : '';
-
     node.innerHTML = `
       <div class="check-card-header">
-        <span class="check-card-title">&lt;${escapeHtml(data.title)}&gt;</span>
-        <button type="button" class="check-copy" data-copy="all" title="カード全体をコピー">${copySvg}</button>
+        <span class="check-card-title">&lt;${escapeHtml(data.title || '判定')}&gt;</span>
+        <button type="button" class="check-copy" data-copy="title" title="見出しをコピー">${copySvg}</button>
       </div>
-      ${leadHtml}
-      ${successHtml}
-      ${failHtml}
+      <div class="check-card-row success">
+        <span class="check-badge success">成功</span>
+        <div class="check-card-body" data-field="success" contenteditable="true" data-placeholder="成功時の文章を入力">${escapeHtml(data.success || '').replace(/\n/g, '<br>')}</div>
+        <button type="button" class="check-copy" data-copy="success" title="成功をコピー">${copySvg}</button>
+      </div>
+      <div class="check-card-row fail">
+        <span class="check-badge fail">失敗</span>
+        <div class="check-card-body" data-field="fail" contenteditable="true" data-placeholder="失敗時の文章を入力">${escapeHtml(data.fail || '').replace(/\n/g, '<br>')}</div>
+        <button type="button" class="check-copy" data-copy="fail" title="失敗をコピー">${copySvg}</button>
+      </div>
     `;
     return node;
   }
@@ -225,17 +202,17 @@
     if (!quill) return;
     const range = quill.getSelection(true);
     if (!range || range.length === 0) {
-      showToast('判定文を選択してから実行してください', 'error', 2200);
+      showToast('カードの見出しにする文字を選択してください', 'error', 2200);
       return;
     }
-    const raw = quill.getText(range.index, range.length);
-    const data = parseCheckCardText(raw);
-    if (!data.success && !data.fail) {
-      showToast('「成功：」「失敗：」を含む文章を選択してください', 'error', 2800);
-      return;
-    }
+    const title = normalizeCheckTitle(quill.getText(range.index, range.length));
     quill.deleteText(range.index, range.length, 'user');
-    quill.insertEmbed(range.index, 'checkCard', data, 'user');
+    quill.insertEmbed(range.index, 'checkCard', {
+      title,
+      lead: '',
+      success: '',
+      fail: ''
+    }, 'user');
     quill.insertText(range.index + 1, '\n', 'user');
     markDirty();
   }
@@ -1208,21 +1185,33 @@ applyCodeColors();
     e.stopPropagation();
     const card = btn.closest('.check-card');
     if (!card) return;
-    let payload = {};
-    try { payload = JSON.parse(card.dataset.payload || '{}'); } catch (err) {}
+    const payload = syncCheckCardPayload(card) || {};
     const kind = btn.getAttribute('data-copy');
     let text = '';
     if (kind === 'success') text = payload.success || '';
     else if (kind === 'fail') text = payload.fail || '';
+    else if (kind === 'title') text = payload.title ? `＜${payload.title}＞` : '';
     else {
       text = [
         payload.title ? `＜${payload.title}＞` : '',
-        payload.lead || '',
-        payload.success ? `成功：${payload.success}` : '',
-        payload.fail ? `失敗：${payload.fail}` : ''
+        payload.success ? `成功：${payload.success}` : '成功：',
+        payload.fail ? `失敗：${payload.fail}` : '失敗：'
       ].filter(Boolean).join('\n');
     }
     copyTextSafe(text).then(() => showToast('コピーしました', 'success', 1400));
+  });
+
+  document.addEventListener('input', (e) => {
+    const body = e.target.closest && e.target.closest('.check-card-body');
+    if (!body) return;
+    const card = body.closest('.check-card');
+    syncCheckCardPayload(card);
+    markDirty();
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (!e.target.closest || !e.target.closest('.check-card-body')) return;
+    e.stopPropagation();
   });
 
   // ===== 検索・置換 =====
