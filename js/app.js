@@ -94,7 +94,10 @@
         toolbar: {
           container: toolbarOptions,
           handlers: {
-            // 必要に応じてカスタムハンドラ追加可能
+            // 大きな選択範囲のコードブロック化を軽量化
+            'code-block': function () {
+              applyCodeBlockLight();
+            }
           }
         },
         clipboard: {
@@ -144,98 +147,107 @@
       placeholder: 'ここに本文を入力するか、左上の「本文から取り込み」からPDF/TXTを読み込んでください...\n\n見出しを使うと左側の目次に自動反映されます。'
     });
 
-    // 変更検知
+    // 変更検知（重い処理はまとめて遅延）
     quill.on('text-change', () => {
       markDirty();
       updateCharCount();
-      // 目次は少し遅延させて更新（パフォーマンス）
-      clearTimeout(window._tocTimer);
-      window._tocTimer = setTimeout(updateTOC, 400);
-      // コードブロックにコピーボタンを付与
-      clearTimeout(window._codeBtnTimer);
-      window._codeBtnTimer = setTimeout(attachCodeBlockCopyButtons, 300);
+      clearTimeout(window._heavyTimer);
+      window._heavyTimer = setTimeout(() => {
+        updateTOC();
+        attachCodeBlockCopyButtons();
+      }, 800);
     });
 
-    // コードブロック用コピーボタンの初期適用と監視
+    // コードブロック用コピーボタンの初期適用
+    // ※ MutationObserver は大きな書式変更時に無限ループ化するため使わない
     attachCodeBlockCopyButtons();
-    observeCodeBlocks();
 
     // 初期フォーカス
     quill.focus();
   }
 
+  // ===== コードブロックを軽量に適用 =====
+  function applyCodeBlockLight() {
+    if (!quill) return;
+    const range = quill.getSelection(true);
+    if (!range) return;
+
+    // すでにコードブロックなら解除
+    const formats = quill.getFormat(range);
+    if (formats['code-block']) {
+      quill.format('code-block', false);
+      return;
+    }
+
+    // 選択範囲が空なら通常のトグル
+    if (range.length === 0) {
+      quill.format('code-block', true);
+      return;
+    }
+
+    // 大きな選択は「削除＋一括挿入」の方が Quill の行ごと処理より軽い
+    const text = quill.getText(range.index, range.length);
+    quill.deleteText(range.index, range.length, 'user');
+    quill.insertText(range.index, text.replace(/\n+$/, ''), 'code-block', true, 'user');
+    quill.insertText(range.index + text.replace(/\n+$/, '').length, '\n', 'user');
+  }
+
+  const COPY_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
+  const CHECK_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+
+  let attachingCodeBtns = false;
+
   // ===== コードブロック右上にコピーボタンを追加 =====
   function attachCodeBlockCopyButtons() {
-    if (!quill) return;
-    const pres = quill.root.querySelectorAll('pre.ql-syntax');
-    pres.forEach((pre) => {
-      // 既にボタンがある場合はスキップ
-      if (pre.querySelector('.code-copy-btn')) return;
+    if (!quill || attachingCodeBtns) return;
+    attachingCodeBtns = true;
+    try {
+      const pres = quill.root.querySelectorAll('pre.ql-syntax');
+      pres.forEach((pre) => {
+        if (pre.querySelector('.code-copy-btn')) return;
+        pre.style.position = 'relative';
 
-      // pre を relative に
-      pre.style.position = 'relative';
-
-      const btn = document.createElement('button');
-      btn.className = 'code-copy-btn';
-      btn.type = 'button';
-      btn.title = 'コピー';
-      btn.innerHTML = `
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-        </svg>
-      `;
-
-      btn.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const text = pre.innerText || pre.textContent || '';
-        try {
-          await navigator.clipboard.writeText(text);
-          btn.classList.add('copied');
-          btn.innerHTML = `
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-          `;
-          showToast('コードをコピーしました', 'success', 1500);
-          setTimeout(() => {
-            btn.classList.remove('copied');
-            btn.innerHTML = `
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-            `;
-          }, 1500);
-        } catch (err) {
-          // fallback
-          const ta = document.createElement('textarea');
-          ta.value = text;
-          ta.style.position = 'fixed';
-          ta.style.left = '-9999px';
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
-          showToast('コードをコピーしました', 'success', 1500);
-        }
+        const btn = document.createElement('button');
+        btn.className = 'code-copy-btn';
+        btn.type = 'button';
+        btn.title = 'コピー';
+        btn.innerHTML = COPY_ICON;
+        pre.appendChild(btn);
       });
-
-      pre.appendChild(btn);
-    });
+    } finally {
+      attachingCodeBtns = false;
+    }
   }
 
-  function observeCodeBlocks() {
-    if (!quill) return;
-    const observer = new MutationObserver(() => {
-      attachCodeBlockCopyButtons();
-    });
-    observer.observe(quill.root, {
-      childList: true,
-      subtree: true
-    });
-  }
+  // コピーはイベント委任（ブロックごとの listener を増やさない）
+  document.addEventListener('click', async (e) => {
+    const btn = e.target.closest && e.target.closest('.code-copy-btn');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const pre = btn.closest('pre');
+    if (!pre) return;
+    const text = (pre.innerText || pre.textContent || '').replace(/\s*コピー\s*$/, '');
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    btn.classList.add('copied');
+    btn.innerHTML = CHECK_ICON;
+    showToast('コードをコピーしました', 'success', 1500);
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = COPY_ICON;
+    }, 1500);
+  });
 
   // ===== 目次生成 =====
   function updateTOC() {
@@ -538,8 +550,9 @@
 
   /**
    * 「名前を付けて保存」
-   **/
-
+   * Chrome / Edge など File System Access API 対応ブラウザでは保存先を指定可能
+   * 非対応ブラウザでは JSON ダウンロードにフォールバック
+   */
   async function saveAll() {
     if (!quill) return;
 
@@ -773,7 +786,7 @@ ${quill.root.innerHTML}
   const codeBgInput = $('#code-bg-color');
   const codeTextInput = $('#code-text-color');
   const fontSizeSelect = $('#editor-font-size');
-  const autoSaveCheck = $('#auto-save');
+  const autoSaveCheck = $('#auto-save'); // 自動保存は無効化（UI削除）
 
   function applyCodeColors() {
     document.documentElement.style.setProperty('--code-bg', codeBgInput.value);
@@ -799,7 +812,7 @@ ${quill.root.innerHTML}
       codeBg: codeBgInput.value,
       codeText: codeTextInput.value,
       fontSize: fontSizeSelect.value,
-      autoSave: autoSaveCheck.checked
+      autoSave: false
     };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
   }
@@ -815,27 +828,18 @@ ${quill.root.innerHTML}
         fontSizeSelect.value = s.fontSize;
         if (quill) quill.root.style.fontSize = s.fontSize;
       }
-      if (typeof s.autoSave === 'boolean') autoSaveCheck.checked = s.autoSave;
+      // 自動保存は無効のため設定を復元しない
       applyCodeColors();
     } catch (e) {}
   }
 
-  // ===== 自動保存 =====
+  // ===== 自動保存は無効 =====
   function startAutoSave() {
-    if (autoSaveTimer) clearInterval(autoSaveTimer);
-    autoSaveTimer = setInterval(() => {
-      if (autoSaveCheck.checked && isDirty) {
-        // 自動保存は localStorage のみ（ファイル選択ダイアログは出さない）
-        saveToLocalStorage();
-        showToast('自動保存しました（ブラウザ内）', 'success', 1500);
-      }
-    }, 30000);
+    if (autoSaveTimer) {
+      clearInterval(autoSaveTimer);
+      autoSaveTimer = null;
+    }
   }
-
-  autoSaveCheck.addEventListener('change', () => {
-    saveSettings();
-    startAutoSave();
-  });
 
   // ===== 保存ボタン =====
   $('#btn-save').addEventListener('click', saveAll);
