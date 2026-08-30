@@ -137,7 +137,7 @@ html, body {
 
 .btn-icon {
   padding: 8px 10px;
-  background: transparent;
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 1.1rem;
