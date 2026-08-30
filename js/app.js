@@ -817,15 +817,22 @@
       }
     };
 
+    const isIncompleteSentence = (str) => {
+      if (!str) return false;
+      if (isInsideUnclosedQuote(str)) return true;
+      if (sentenceEnd.test(str) || isCompleteShortQuote(str)) return false;
+      return true;
+    };
+
     for (let i = 0; i < lines.length; i++) {
       const trimmed = lines[i].replace(/\s+$/, '').trim();
 
       if (!trimmed) {
-        if (!isInsideUnclosedQuote(buffer)) {
-          flush();
-          if (result.length === 0 || result[result.length - 1] !== '') {
-            result.push('');
-          }
+        // PDFの折り返しで入った空行は、文の途中なら無視して結合を続ける
+        if (isIncompleteSentence(buffer)) continue;
+        flush();
+        if (result.length === 0 || result[result.length - 1] !== '') {
+          result.push('');
         }
         continue;
       }
