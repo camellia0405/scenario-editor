@@ -1337,6 +1337,35 @@ applyCodeColors();
     e.stopPropagation();
   });
 
+  // Quill が paste を横取りするので、カード内は自分で貼り付ける
+  document.addEventListener('paste', (e) => {
+    const body = e.target.closest && e.target.closest('.check-card-body');
+    if (!body) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+    const raw = (e.clipboardData || window.clipboardData);
+    const text = raw ? raw.getData('text/plain') : '';
+    if (!text) return;
+    try {
+      document.execCommand('insertText', false, text);
+    } catch (err) {
+      body.textContent = (body.textContent || '') + text;
+    }
+    syncCheckCardPayload(body.closest('.check-card'));
+    markDirty();
+  }, true);
+
+  document.addEventListener('copy', (e) => {
+    if (!e.target.closest || !e.target.closest('.check-card-body')) return;
+    e.stopPropagation();
+  }, true);
+
+  document.addEventListener('cut', (e) => {
+    if (!e.target.closest || !e.target.closest('.check-card-body')) return;
+    e.stopPropagation();
+  }, true);
+
   // ===== 検索・置換 =====
   const findBar = $('#find-bar');
   const findInput = $('#find-input');
