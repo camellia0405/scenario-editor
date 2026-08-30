@@ -79,7 +79,7 @@ html, body {
 
 .file-name {
   font-size: 0.85rem;
-  color: var(--text-muted);
+  color: #00008b;
   max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
