@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>TRPGシナリオ編集/GM補助ツール</title>
-  <!-- Quill 1.3.7 -->
+  <!-- Quill 1.3.7 (安定版・豊富なドキュメント) -->
   <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
 </head>
@@ -29,16 +29,22 @@
         <h1 class="app-title">TRPGシナリオ編集/GM補助ツール</h1>
       </div>
       <div class="header-right">
-        <button id="btn-find" class="btn btn-secondary" title="検索と置換 (Ctrl+F / Ctrl+H)">🔎 置換</button>
-        <button id="btn-open-file" class="btn btn-secondary" title="保存したJSONファイルを開く">📂 開く</button>
-        <button id="btn-save" class="btn btn-secondary" title="名前を付けて保存（Chrome/Edge推奨）">💾 保存</button>
-        <button id="btn-export-html" class="btn btn-secondary" title="HTMLとしてダウンロード">📄 HTML</button>
-        <button id="btn-export-txt" class="btn btn-secondary" title="テキストとしてダウンロード">📝 TXT</button>
-        <button id="btn-clear" class="btn btn-danger" title="内容をクリア">🗑 クリア</button>
-        <button id="btn-toggle-left" class="btn btn-icon" title="目次パネル切替">☰</button>
-        <button id="btn-toggle-right" class="btn btn-icon btn-settings" title="サイドパネル切替">
-          <img src="img/setting_icon.png" alt="設定" class="settings-icon" />
+        <button id="btn-header-menu" class="btn btn-icon header-menu-btn" title="メニュー" aria-expanded="false">
+          <span class="header-menu-icon">☰</span>
         </button>
+        <div id="header-actions" class="header-actions">
+          <button id="btn-find" class="btn btn-secondary" title="検索と置換 (Ctrl+F / Ctrl+H)">🔎 置換</button>
+          <button id="btn-open-file" class="btn btn-secondary" title="保存したJSONファイルを開く">📂 開く</button>
+          <button id="btn-save" class="btn btn-secondary" title="名前を付けて保存（Chrome/Edge推奨）">💾 保存</button>
+          <button id="btn-export-html" class="btn btn-secondary" title="HTMLとしてダウンロード">📄 HTML</button>
+          <button id="btn-export-txt" class="btn btn-secondary" title="テキストとしてダウンロード">📝 TXT</button>
+          <button id="btn-clear" class="btn btn-danger" title="内容をクリア">🗑 クリア</button>
+          <button id="btn-toggle-left" class="btn btn-icon" title="目次パネル切替">☰ <span class="menu-label">目次</span></button>
+          <button id="btn-toggle-right" class="btn btn-icon btn-settings" title="サイドパネル切替">
+            <img src="img/setting_icon.png" alt="設定" class="settings-icon" />
+            <span class="menu-label">設定</span>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -148,7 +154,7 @@
     <div id="toast" class="toast hidden"></div>
   </div>
 
-  <!-- PDF.js -->
+  <!-- PDF.js (安定版 2.16 系 - クラシックスクリプトで扱いやすい) -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
   <!-- Quill -->
   <script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>

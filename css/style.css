@@ -13,10 +13,8 @@
   --primary-hover: #2563eb;
   --danger: #ef4444;
   --bg: #f8fafc;
-  --header-bg: #add8e6;
   --panel-bg: #ffffff;
   --border: #e2e8f0;
-  --title: #191970;
   --text: #1e293b;
   --text-muted: #64748b;
   --code-bg: #23241f;
@@ -44,7 +42,7 @@ html, body {
 /* ===== ヘッダー ===== */
 .header {
   height: var(--header-height);
-  background: var(--header-bg);
+  background: var(--panel-bg);
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
@@ -63,6 +61,20 @@ html, body {
   flex-shrink: 0;
 }
 
+.header-menu-btn {
+  display: none;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.menu-label {
+  display: none;
+}
+
 .header-center {
   flex: 1;
   text-align: center;
@@ -70,13 +82,12 @@ html, body {
 }
 
 .app-title {
-  font-size: 1.4rem;
+  font-size: 1.1rem;
   font-weight: 600;
-  color: var(--title);
+  color: var(--text);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-shadow: 0 2px 2px rgb(255, 255, 255);
 }
 
 .file-name {
@@ -139,7 +150,7 @@ html, body {
 
 .btn-icon {
   padding: 8px 10px;
-  background: var(--bg);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 1.1rem;
@@ -545,7 +556,7 @@ html, body {
 /* コードブロック色カスタム */
 .ql-snow .ql-editor pre.ql-syntax,
 .ql-snow .ql-editor pre {
-  max-width: 740px;
+  max-width: 680px;
   background-color: var(--code-bg) ;
   color: var(--code-text) ;
   border-radius: 6px;
@@ -828,15 +839,49 @@ html, body {
 
 @media (max-width: 768px) {
   .header {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     height: auto;
+    min-height: var(--header-height);
     padding: 8px;
     gap: 6px;
   }
   .header-center {
-    order: -1;
-    width: 100%;
+    order: 0;
+    width: auto;
+    flex: 1;
     text-align: left;
+  }
+  .header-menu-btn {
+    display: inline-flex;
+  }
+  .header-actions {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 8px;
+    flex-direction: column;
+    align-items: stretch;
+    min-width: 200px;
+    padding: 8px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
+    z-index: 200;
+  }
+  .header-actions.open {
+    display: flex;
+  }
+  .header-actions .btn {
+    width: 100%;
+    justify-content: flex-start;
+    min-height: 44px;
+  }
+  .menu-label {
+    display: inline;
+  }
+  .header-right {
+    position: relative;
   }
   .app-title {
     font-size: 1rem;

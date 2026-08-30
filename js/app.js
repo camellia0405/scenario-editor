@@ -1444,6 +1444,27 @@ ${quill.root.innerHTML}
     rightPanel.classList.toggle('hidden');
   });
 
+  const headerMenuBtn = $('#btn-header-menu');
+  const headerActions = $('#header-actions');
+  function closeHeaderMenu() {
+    if (!headerActions) return;
+    headerActions.classList.remove('open');
+    if (headerMenuBtn) headerMenuBtn.setAttribute('aria-expanded', 'false');
+  }
+  if (headerMenuBtn && headerActions) {
+    headerMenuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = headerActions.classList.toggle('open');
+      headerMenuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+    headerActions.addEventListener('click', (e) => {
+      if (e.target.closest('button')) closeHeaderMenu();
+    });
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.header-right')) closeHeaderMenu();
+    });
+  }
+
   // ===== 設定 =====
   const codeBgInput = $('#code-bg-color');
   const codeTextInput = $('#code-text-color');
