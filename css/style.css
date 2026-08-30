@@ -61,7 +61,7 @@ html, body {
   flex-shrink: 0;
 }
 
-.header-menu-btn {
+button.header-menu-btn.btn {
   display: none;
 }
 
@@ -851,7 +851,7 @@ html, body {
     flex: 1;
     text-align: left;
   }
-  .header-menu-btn {
+  button.header-menu-btn.btn {
     display: inline-flex;
   }
   .header-actions {
@@ -904,7 +904,7 @@ html, body {
     border-left: 1px solid var(--border);
   }
   .ql-editor {
-    padding: 16px 12px !important;
+    padding: 16px 12px ;
   }
   .ql-snow .ql-editor pre.ql-syntax,
   .ql-snow .ql-editor pre {
