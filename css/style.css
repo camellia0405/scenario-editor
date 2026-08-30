@@ -315,7 +315,8 @@ html, body {
 .ql-editor h3 { font-size: 1.2em; margin: 0.6em 0 0.3em; }
 
 /* コードブロック色カスタム */
-.ql-snow .ql-editor pre.ql-syntax {
+.ql-snow .ql-editor pre.ql-syntax,
+.ql-snow .ql-editor pre {
   background-color: var(--code-bg) !important;
   color: var(--code-text) !important;
   border-radius: 6px;
@@ -335,14 +336,14 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(15, 23, 42, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: 4px;
-  color: #e2e8f0;
+  color: #ffffff;
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
   padding: 0;
-  z-index: 2;
+  z-index: 5;
 }
 
 .code-copy-btn:hover {
