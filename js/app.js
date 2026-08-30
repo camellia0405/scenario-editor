@@ -276,53 +276,43 @@
     showToast('解除する判定カードを選んでください', 'error', 2200);
   }
 
-  function unwrapCodeBlock() {
-    if (!quill) return;
-    const range = quill.getSelection(true);
-    if (!range) {
-      showToast('解除するコードブロック内をクリックしてください', 'error', 2200);
-      return;
-    }
-    const fullText = quill.getText();
-    let start = range.index;
-    let end = range.index + Math.max(range.length, 0);
-    while (start > 0 && fullText.charAt(start - 1) !== '\n') start--;
-    if (end < fullText.length) {
-      const nextNl = fullText.indexOf('\n', end);
-      end = nextNl === -1 ? fullText.length : nextNl + 1;
-    }
+  let lastEditorRange = null;
+  let lastCodePre = null;
 
-    // 選択がコードブロック内でなければ、前後の連続する code-block 行を探す
-    const fmt = quill.getFormat(Math.max(start, 0), Math.max(end - start, 1));
-    if (!fmt['code-block']) {
-      showToast('コードブロック内にカーソルを置いてください', 'error', 2200);
-      return;
-    }
-
-    // 連続するコードブロック全体を解除
-    let from = start;
-    let to = end;
-    while (from > 0) {
-      const prevLineEnd = from;
-      let prevLineStart = prevLineEnd - 1;
-      while (prevLineStart > 0 && fullText.charAt(prevLineStart - 1) !== '\n') prevLineStart--;
-      const prevFmt = quill.getFormat(prevLineStart, Math.max(prevLineEnd - prevLineStart, 1));
-      if (!prevFmt['code-block']) break;
-      from = prevLineStart;
-    }
-    while (to < fullText.length) {
-      const nextStart = to;
-      const nl = fullText.indexOf('\n', nextStart);
-      const nextEnd = nl === -1 ? fullText.length : nl + 1;
-      const nextFmt = quill.getFormat(nextStart, Math.max(nextEnd - nextStart, 1));
-      if (!nextFmt['code-block']) break;
-      to = nextEnd;
-    }
-
-    quill.formatLine(from, Math.max(to - from, 1), 'code-block', false);
+  function unwrapCodeBlockByPre(pre) {
+    if (!quill || !pre) return false;
+    const blot = Quill.find(pre);
+    if (!blot || typeof blot.offset !== 'function') return false;
+    const index = blot.offset(quill.scroll);
+    const len = typeof blot.length === 'function' ? blot.length() : (pre.textContent || '').length + 1;
+    quill.formatLine(index, Math.max(len, 1), 'code-block', false);
+    lastCodePre = null;
     requestAnimationFrame(updateFloatingCopyButtons);
     markDirty();
     showToast('コードブロックを解除しました', 'success', 1500);
+    return true;
+  }
+
+  function unwrapCodeBlock() {
+    if (!quill) return;
+
+    if (lastCodePre && document.contains(lastCodePre) && unwrapCodeBlockByPre(lastCodePre)) return;
+
+    const range = quill.getSelection() || lastEditorRange;
+    if (range) {
+      const [leaf] = quill.getLeaf(range.index) || [];
+      const node = leaf && leaf.domNode;
+      const pre = node && (node.closest ? node.closest('pre') : (node.tagName === 'PRE' ? node : node.parentElement && node.parentElement.closest && node.parentElement.closest('pre')));
+      if (pre && unwrapCodeBlockByPre(pre)) return;
+    }
+
+    const pres = quill.root.querySelectorAll('pre');
+    if (pres.length === 1 && unwrapCodeBlockByPre(pres[0])) return;
+    if (pres.length > 1) {
+      showToast('解除するコードブロックをクリックしてから押してください', 'error', 2200);
+      return;
+    }
+    showToast('解除するコードブロックがありません', 'error', 1800);
   }
 
   function applyRuby() {
@@ -445,6 +435,14 @@
         updateTOC();
         attachCodeBlockCopyButtons();
       }, 800);
+    });
+
+    quill.on('selection-change', (range) => {
+      if (range) lastEditorRange = range;
+    });
+    quill.root.addEventListener('mousedown', (e) => {
+      const pre = e.target.closest && e.target.closest('pre');
+      if (pre) lastCodePre = pre;
     });
 
     // コードブロック用コピーボタン（エディタ外オーバーレイ）
