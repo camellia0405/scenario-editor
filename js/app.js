@@ -18,7 +18,6 @@
   // ===== 状態 =====
   let quill = null;
   let todos = [];
-  let autoSaveTimer = null;
   let isDirty = false;
   const STORAGE_KEY = 'text-importer-editor-data';
   const TODO_KEY = 'text-importer-editor-todos';
@@ -32,8 +31,6 @@
   const loadingOverlay = $('#loading-overlay');
   const loadingText = $('#loading-text');
   const toastEl = $('#toast');
-  const overviewEl = $('#overview');
-  const assumptionsEl = $('#assumptions');
   const todoInput = $('#todo-input');
   const todoListEl = $('#todo-list');
   const charCountEl = $('#char-count');
@@ -340,6 +337,13 @@
   fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    const MAX_IMPORT_BYTES = 40 * 1024 * 1024; // 40MB
+    if (file.size > MAX_IMPORT_BYTES) {
+      showToast('ファイルが大きすぎます（40MBまで）', 'error', 4000);
+      fileInput.value = '';
+      return;
+    }
 
     const ext = file.name.split('.').pop().toLowerCase();
     fileNameEl.textContent = file.name;
@@ -700,8 +704,6 @@
       version: 1,
       content: quill ? quill.getContents() : null,
       html: quill ? quill.root.innerHTML : '',
-      overview: overviewEl.value,
-      assumptions: assumptionsEl.value,
       todos: todos,
       savedAt: new Date().toISOString()
     };
@@ -776,6 +778,10 @@
           multiple: false
         });
         const file = await handle.getFile();
+        if (file.size > 20 * 1024 * 1024) {
+          showToast('JSONが大きすぎます（20MBまで）', 'error', 4000);
+          return;
+        }
         const text = await file.text();
         applyLoadedData(JSON.parse(text));
         showToast(`「${file.name}」を読み込みました`, 'success');
@@ -808,16 +814,20 @@
 
   /** 読み込んだデータをエディタに反映 */
   function applyLoadedData(data) {
-    if (!data) return;
-    if (data.content) {
-      quill.setContents(data.content);
-    } else if (data.html) {
-      quill.root.innerHTML = data.html;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      showToast('不正な保存データです', 'error');
+      return;
     }
-    if (data.overview != null) overviewEl.value = data.overview;
-    if (data.assumptions != null) assumptionsEl.value = data.assumptions;
+    if (data.content && Array.isArray(data.content.ops)) {
+      quill.setContents(data.content);
+    } else if (typeof data.html === 'string' && data.html) {
+      const delta = quill.clipboard.convert(data.html);
+      quill.setContents(delta);
+    }
     if (Array.isArray(data.todos)) {
-      todos = data.todos;
+      todos = data.todos
+        .filter((t) => t && typeof t.text === 'string')
+        .map((t) => ({ text: String(t.text).slice(0, 500), done: !!t.done }));
       renderTodos();
     }
     updateCharCount();
@@ -936,8 +946,6 @@ ${quill.root.innerHTML}
   $('#btn-clear').addEventListener('click', () => {
     if (!confirm('編集中の内容をすべてクリアしますか？\n（ローカル保存データは残ります）')) return;
     quill.setText('');
-    overviewEl.value = '';
-    assumptionsEl.value = '';
     updateCharCount();
     updateTOC();
     markDirty();
@@ -1001,14 +1009,6 @@ ${quill.root.innerHTML}
       // 自動保存は無効のため設定を復元しない
       applyCodeColors();
     } catch (e) {}
-  }
-
-  // ===== 自動保存は無効 =====
-  function startAutoSave() {
-    if (autoSaveTimer) {
-      clearInterval(autoSaveTimer);
-      autoSaveTimer = null;
-    }
   }
 
   // ===== 保存ボタン =====
@@ -1190,9 +1190,6 @@ ${quill.root.innerHTML}
   });
 
   // 概要・想定も変更検知
-  overviewEl.addEventListener('input', markDirty);
-  assumptionsEl.addEventListener('input', markDirty);
-
   // ===== 初期化 =====
   function init() {
     initQuill();
@@ -1206,7 +1203,6 @@ ${quill.root.innerHTML}
         renderTodos();
       }
     } catch (e) {}
-    startAutoSave();
     updateTOC();
 
     // ページ離脱警告
