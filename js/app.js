@@ -761,22 +761,29 @@
   }
 
   function isInsideUnclosedQuote(str) {
-    return countChar(str, '「') > countChar(str, '」');
+    const s = String(str || '');
+    return countChar(s, '「') > countChar(s, '」')
+      || countChar(s, '『') > countChar(s, '』')
+      || countChar(s, '（') > countChar(s, '）')
+      || countChar(s, '(') > countChar(s, ')');
   }
 
-  /** 「」の外にある 。！？ で行を分割する */
+  /** 「」や（）の外にある 。！？ で行を分割する */
   function splitBySentenceMarks(text) {
     const t = String(text || '');
     if (!t) return [''];
     if (isHeadingOrItemLine(t)) return [t];
     const out = [];
     let buf = '';
-    let depth = 0;
+    let quoteDepth = 0;
+    let parenDepth = 0;
     for (const ch of t) {
       buf += ch;
-      if (ch === '「' || ch === '『') depth++;
-      else if ((ch === '」' || ch === '』') && depth > 0) depth--;
-      else if (depth === 0 && /[。！？!?．…]/.test(ch)) {
+      if (ch === '「' || ch === '『') quoteDepth++;
+      else if ((ch === '」' || ch === '』') && quoteDepth > 0) quoteDepth--;
+      else if (ch === '（' || ch === '(') parenDepth++;
+      else if ((ch === '）' || ch === ')') && parenDepth > 0) parenDepth--;
+      else if (quoteDepth === 0 && parenDepth === 0 && /[。！？!?．…]/.test(ch)) {
         const s = buf.trim();
         if (s) out.push(s);
         buf = '';
