@@ -281,11 +281,20 @@
 
   function unwrapCodeBlockByPre(pre) {
     if (!quill || !pre) return false;
-    const blot = Quill.find(pre);
+    const text = (pre.innerText || pre.textContent || '').replace(/\u00a0/g, ' ').replace(/\n$/, '');
+    let blot = Quill.find(pre, true);
+    if (!blot) blot = Quill.find(pre);
     if (!blot || typeof blot.offset !== 'function') return false;
+    while (blot.parent && blot.domNode !== pre && blot.domNode !== quill.root) {
+      if (blot.statics && blot.statics.blotName === 'code-block') break;
+      blot = blot.parent;
+    }
     const index = blot.offset(quill.scroll);
-    const len = typeof blot.length === 'function' ? blot.length() : (pre.textContent || '').length + 1;
-    quill.formatLine(index, Math.max(len, 1), 'code-block', false);
+    const len = typeof blot.length === 'function' ? blot.length() : (text.length + 1);
+    if (index < 0 || len <= 0) return false;
+
+    quill.deleteText(index, len, 'silent');
+    quill.insertText(index, (text ? text + '\n' : '\n'), {}, 'user');
     lastCodePre = null;
     requestAnimationFrame(updateFloatingCopyButtons);
     markDirty();
@@ -522,7 +531,10 @@
     if (rubyBtn) rubyBtn.addEventListener('click', applyRuby);
     if (cardBtn) cardBtn.addEventListener('click', applyCheckCard);
     if (unwrapCardBtn) unwrapCardBtn.addEventListener('click', unwrapCheckCardFromSelection);
-    if (unwrapCodeBtn) unwrapCodeBtn.addEventListener('click', unwrapCodeBlock);
+    if (unwrapCodeBtn) {
+      unwrapCodeBtn.addEventListener('mousedown', (e) => e.preventDefault());
+      unwrapCodeBtn.addEventListener('click', unwrapCodeBlock);
+    }
 
     const codeBtn = toolbar.querySelector('.ql-code-block');
     if (codeBtn && unwrapCodeBtn) {
