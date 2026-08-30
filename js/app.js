@@ -142,7 +142,10 @@
     node.innerHTML = `
       <div class="check-card-header">
         <span class="check-card-title">${escapeHtml(data.title || '判定')}</span>
-        <button type="button" class="check-copy" data-copy="title" title="見出しをコピー">${copySvg}</button>
+        <div class="check-card-actions">
+          <button type="button" class="check-unwrap" title="カードを解除して文章に戻す">解除</button>
+          <button type="button" class="check-copy" data-copy="title" title="見出しをコピー">${copySvg}</button>
+        </div>
       </div>
       <div class="check-card-row success">
         <span class="check-badge success">成功</span>
@@ -210,6 +213,116 @@
     }, 'user');
     quill.insertText(range.index + 1, '\n', 'user');
     markDirty();
+  }
+
+  function checkCardToPlainText(payload) {
+    const data = payload || {};
+    const lines = [data.title || ''];
+    if (data.success) lines.push('成功：' + data.success);
+    if (data.fail) lines.push('失敗：' + data.fail);
+    return lines.filter((v, i) => i === 0 || v).join('\n');
+  }
+
+  function unwrapCheckCard(cardEl) {
+    if (!quill || !cardEl) {
+      showToast('解除する判定カードをクリックしてから実行してください', 'error', 2200);
+      return;
+    }
+    const payload = syncCheckCardPayload(cardEl) || {};
+    const blot = Quill.find(cardEl);
+    if (!blot) {
+      showToast('判定カードを解除できませんでした', 'error', 2000);
+      return;
+    }
+    const index = blot.offset(quill.scroll);
+    const text = checkCardToPlainText(payload);
+    quill.deleteText(index, 1, 'user');
+    quill.insertText(index, text + '\n', 'user');
+    quill.setSelection(index, text.length, 'user');
+    markDirty();
+    showToast('判定カードを解除しました', 'success', 1500);
+  }
+
+  function unwrapCheckCardFromSelection() {
+    if (!quill) return;
+    const selected = document.querySelector('.check-card.is-target') || document.activeElement && document.activeElement.closest && document.activeElement.closest('.check-card');
+    if (selected) {
+      unwrapCheckCard(selected);
+      return;
+    }
+    const range = quill.getSelection(true);
+    if (range) {
+      const [blot] = quill.getLeaf(range.index) || [];
+      const node = blot && blot.domNode;
+      const card = node && node.closest ? node.closest('.check-card') : (node && node.classList && node.classList.contains('check-card') ? node : null);
+      if (card) {
+        unwrapCheckCard(card);
+        return;
+      }
+      // カーソル直後の embed
+      const next = quill.getLeaf(range.index + 1);
+      const nextNode = next && next[0] && next[0].domNode;
+      const nextCard = nextNode && (nextNode.closest ? nextNode.closest('.check-card') : (nextNode.classList && nextNode.classList.contains('check-card') ? nextNode : null));
+      if (nextCard) {
+        unwrapCheckCard(nextCard);
+        return;
+      }
+    }
+    const cards = quill.root.querySelectorAll('.check-card');
+    if (cards.length === 1) {
+      unwrapCheckCard(cards[0]);
+      return;
+    }
+    showToast('解除する判定カードを選んでください', 'error', 2200);
+  }
+
+  function unwrapCodeBlock() {
+    if (!quill) return;
+    const range = quill.getSelection(true);
+    if (!range) {
+      showToast('解除するコードブロック内をクリックしてください', 'error', 2200);
+      return;
+    }
+    const fullText = quill.getText();
+    let start = range.index;
+    let end = range.index + Math.max(range.length, 0);
+    while (start > 0 && fullText.charAt(start - 1) !== '\n') start--;
+    if (end < fullText.length) {
+      const nextNl = fullText.indexOf('\n', end);
+      end = nextNl === -1 ? fullText.length : nextNl + 1;
+    }
+
+    // 選択がコードブロック内でなければ、前後の連続する code-block 行を探す
+    const fmt = quill.getFormat(Math.max(start, 0), Math.max(end - start, 1));
+    if (!fmt['code-block']) {
+      showToast('コードブロック内にカーソルを置いてください', 'error', 2200);
+      return;
+    }
+
+    // 連続するコードブロック全体を解除
+    let from = start;
+    let to = end;
+    while (from > 0) {
+      const prevLineEnd = from;
+      let prevLineStart = prevLineEnd - 1;
+      while (prevLineStart > 0 && fullText.charAt(prevLineStart - 1) !== '\n') prevLineStart--;
+      const prevFmt = quill.getFormat(prevLineStart, Math.max(prevLineEnd - prevLineStart, 1));
+      if (!prevFmt['code-block']) break;
+      from = prevLineStart;
+    }
+    while (to < fullText.length) {
+      const nextStart = to;
+      const nl = fullText.indexOf('\n', nextStart);
+      const nextEnd = nl === -1 ? fullText.length : nl + 1;
+      const nextFmt = quill.getFormat(nextStart, Math.max(nextEnd - nextStart, 1));
+      if (!nextFmt['code-block']) break;
+      to = nextEnd;
+    }
+
+    quill.formatLine(from, Math.max(to - from, 1), 'code-block', false);
+    requestAnimationFrame(updateFloatingCopyButtons);
+    markDirty();
+    showToast('コードブロックを解除しました', 'success', 1500);
   }
 
   function applyRuby() {
@@ -1172,8 +1285,23 @@ applyCodeColors();
   if (btnRuby) btnRuby.addEventListener('click', applyRuby);
   const btnCheckCard = $('#btn-check-card');
   if (btnCheckCard) btnCheckCard.addEventListener('click', applyCheckCard);
+  const btnUnwrapCard = $('#btn-unwrap-card');
+  if (btnUnwrapCard) btnUnwrapCard.addEventListener('click', unwrapCheckCardFromSelection);
+  const btnUnwrapCode = $('#btn-unwrap-code');
+  if (btnUnwrapCode) btnUnwrapCode.addEventListener('click', unwrapCodeBlock);
 
   document.addEventListener('click', (e) => {
+    const unwrapBtn = e.target.closest && e.target.closest('.check-unwrap');
+    if (unwrapBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      unwrapCheckCard(unwrapBtn.closest('.check-card'));
+      return;
+    }
+    const card = e.target.closest && e.target.closest('.check-card');
+    document.querySelectorAll('.check-card.is-target').forEach((el) => el.classList.remove('is-target'));
+    if (card) card.classList.add('is-target');
+
     const btn = e.target.closest && e.target.closest('.check-copy');
     if (!btn) return;
     e.preventDefault();
