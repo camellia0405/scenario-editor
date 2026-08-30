@@ -801,6 +801,19 @@
     return false;
   }
 
+  /** PDFの折り返し断片（見出しにしない） */
+  function looksLikeWrappedFragment(text) {
+    const t = (text || '').trim();
+    if (!t) return false;
+    if (isHeadingOrItemLine(t)) return false;
+    if (isInsideUnclosedQuote(t)) return true;
+    if (/[。！？!?．…]$/.test(t)) return false;
+    if (/[てしをにがはのとでともへや、,っれりいくぐ]$/.test(t)) return true;
+    if (/^[ぁ-んァ-ヶ]/.test(t)) return true;
+    if (t.length < 24 && !/^[◆■●▲▼★☆◇○◎□【『〈《〔＜]/.test(t)) return true;
+    return false;
+  }
+
   /**
    * 本文は文末まで結合、未閉じの「」は閉じるまで結合
    * 見出し・完結セリフは改行を維持
@@ -987,15 +1000,15 @@
       } else if (currentLineFontSize >= h2Threshold) {
         header = 2;
       } else if (currentLineFontSize >= h3Threshold && lineText.length < 40) {
-        // 短めの行で少し大きい場合は H3 候補
         header = 3;
       }
 
-      if (header) {
-        rawLines.push({ text: lineText, header });
-      } else {
-        rawLines.push({ text: lineText, header: false });
+      // 折り返し途中の行は見出しにしない
+      if (header && looksLikeWrappedFragment(lineText)) {
+        header = false;
       }
+
+      rawLines.push({ text: lineText, header: header || false });
 
       currentLine = [];
       currentLineFontSize = 0;
@@ -1039,12 +1052,12 @@
     }
 
     rawLines.forEach((row) => {
-      if (row.header) {
+      if (row.header && !looksLikeWrappedFragment(row.text) && !isInsideUnclosedQuote(row.text)) {
         flushPara();
         ops.push({ insert: row.text + '\n', attributes: { header: row.header } });
         return;
       }
-      if (isHeadingOrItemLine(row.text)) {
+      if (isHeadingOrItemLine(row.text) && !looksLikeWrappedFragment(row.text)) {
         flushPara();
         ops.push({ insert: row.text + '\n' });
         return;
