@@ -764,6 +764,29 @@
     return countChar(str, '「') > countChar(str, '」');
   }
 
+  /** 「」の外にある 。！？ で行を分割する */
+  function splitBySentenceMarks(text) {
+    const t = String(text || '');
+    if (!t) return [''];
+    if (isHeadingOrItemLine(t)) return [t];
+    const out = [];
+    let buf = '';
+    let depth = 0;
+    for (const ch of t) {
+      buf += ch;
+      if (ch === '「' || ch === '『') depth++;
+      else if ((ch === '」' || ch === '』') && depth > 0) depth--;
+      else if (depth === 0 && /[。！？!?．…]/.test(ch)) {
+        const s = buf.trim();
+        if (s) out.push(s);
+        buf = '';
+      }
+    }
+    const rest = buf.trim();
+    if (rest) out.push(rest);
+    return out.length ? out : [t];
+  }
+
   /** 1行で完結した短いセリフ・項目 */
   function isCompleteShortQuote(line) {
     return /^「[^「」]+」$/.test(line) && line.length <= 60;
@@ -893,7 +916,15 @@
         joined.push(t);
       }
     });
-    return joined
+    const splitLines = [];
+    joined.forEach((line) => {
+      if (line === '' || isHeadingOrItemLine(line)) {
+        splitLines.push(line);
+        return;
+      }
+      splitBySentenceMarks(line).forEach((s) => splitLines.push(s));
+    });
+    return splitLines
       .join('\n')
       .replace(/\n{3,}/g, '\n\n')
       .split('\n');
