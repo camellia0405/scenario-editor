@@ -78,7 +78,7 @@
   // ===== Quill 初期化 =====
   function initQuill() {
     const toolbarOptions = [
-      [{ header: [1, 2, 3, false] }],
+      [{ header: [1, 2, 3, 4, 5, false] }],
       ['bold', 'italic', 'underline', 'strike'],
       [{ color: [] }, { background: [] }],
       [{ list: 'ordered' }, { list: 'bullet' }],
@@ -130,6 +130,24 @@
               altKey: true,
               handler: function () {
                 this.quill.format('header', 3);
+              }
+            },
+            // Ctrl + Alt + 4 → 見出し4
+            header4: {
+              key: '4',
+              ctrlKey: true,
+              altKey: true,
+              handler: function () {
+                this.quill.format('header', 4);
+              }
+            },
+            // Ctrl + Alt + 5 → 見出し5
+            header5: {
+              key: '5',
+              ctrlKey: true,
+              altKey: true,
+              handler: function () {
+                this.quill.format('header', 5);
               }
             },
             // Ctrl + Alt + 0 → 標準（見出し解除）
@@ -290,11 +308,11 @@
 
     // より確実な方法: DOMから見出しを取得
     const editorEl = quill.root;
-    const headings = editorEl.querySelectorAll('h1, h2, h3');
+    const headings = editorEl.querySelectorAll('h1, h2, h3, h4, h5');
     toc.innerHTML = '';
 
     if (headings.length === 0) {
-      toc.innerHTML = '<p class="toc-empty">見出し（H1〜H3）を追加するとここに表示されます</p>';
+      toc.innerHTML = '<p class="toc-empty">見出し（H1〜H5）を追加するとここに表示されます</p>';
       return;
     }
 
@@ -997,6 +1015,180 @@ ${quill.root.innerHTML}
   $('#btn-save').addEventListener('click', saveAll);
   $('#btn-open-file').addEventListener('click', openSavedFile);
 
+  // ===== 検索・置換 =====
+  const findBar = $('#find-bar');
+  const findInput = $('#find-input');
+  const replaceInput = $('#replace-input');
+  const findCountEl = $('#find-count');
+  const findCaseEl = $('#find-case');
+  let findMatches = [];
+  let findIndex = -1;
+
+  function getEditorText() {
+    if (!quill) return '';
+    const t = quill.getText();
+    return t.endsWith('\n') ? t.slice(0, -1) : t;
+  }
+
+  function collectFindMatches() {
+    findMatches = [];
+    const needle = findInput.value;
+    if (!needle) {
+      findIndex = -1;
+      findCountEl.textContent = '0/0';
+      return;
+    }
+    const hay = getEditorText();
+    const caseSensitive = findCaseEl.checked;
+    const src = caseSensitive ? hay : hay.toLowerCase();
+    const q = caseSensitive ? needle : needle.toLowerCase();
+    let from = 0;
+    while (from <= src.length - q.length) {
+      const pos = src.indexOf(q, from);
+      if (pos === -1) break;
+      findMatches.push({ index: pos, length: needle.length });
+      from = pos + Math.max(needle.length, 1);
+    }
+    if (findMatches.length === 0) {
+      findIndex = -1;
+      findCountEl.textContent = '0/0';
+    } else {
+      if (findIndex < 0 || findIndex >= findMatches.length) findIndex = 0;
+      findCountEl.textContent = `${findIndex + 1}/${findMatches.length}`;
+    }
+  }
+
+  function selectCurrentMatch() {
+    if (!quill || findIndex < 0 || !findMatches[findIndex]) return;
+    const m = findMatches[findIndex];
+    quill.setSelection(m.index, m.length, 'silent');
+    const bounds = quill.getBounds(m.index, m.length);
+    if (bounds && quill.root) {
+      const editor = quill.root;
+      const top = bounds.top + editor.scrollTop;
+      if (top < editor.scrollTop || top > editor.scrollTop + editor.clientHeight - 40) {
+        editor.scrollTop = Math.max(0, top - 80);
+      }
+    }
+    findCountEl.textContent = `${findIndex + 1}/${findMatches.length}`;
+  }
+
+  function openFindBar(focusReplace) {
+    findBar.classList.remove('hidden');
+    if (quill) {
+      const sel = quill.getSelection(true);
+      if (sel && sel.length > 0) {
+        findInput.value = quill.getText(sel.index, sel.length);
+      }
+    }
+    collectFindMatches();
+    if (findMatches.length) selectCurrentMatch();
+    setTimeout(() => {
+      (focusReplace ? replaceInput : findInput).focus();
+      (focusReplace ? replaceInput : findInput).select();
+    }, 0);
+  }
+
+  function closeFindBar() {
+    findBar.classList.add('hidden');
+    findMatches = [];
+    findIndex = -1;
+    if (quill) quill.focus();
+  }
+
+  function findNext() {
+    collectFindMatches();
+    if (!findMatches.length) {
+      showToast('一致する文字列がありません', 'error', 1600);
+      return;
+    }
+    findIndex = (findIndex + 1) % findMatches.length;
+    selectCurrentMatch();
+  }
+
+  function findPrev() {
+    collectFindMatches();
+    if (!findMatches.length) {
+      showToast('一致する文字列がありません', 'error', 1600);
+      return;
+    }
+    findIndex = (findIndex - 1 + findMatches.length) % findMatches.length;
+    selectCurrentMatch();
+  }
+
+  function replaceOne() {
+    collectFindMatches();
+    if (!findMatches.length) {
+      showToast('一致する文字列がありません', 'error', 1600);
+      return;
+    }
+    if (findIndex < 0) findIndex = 0;
+    const m = findMatches[findIndex];
+    const replacement = replaceInput.value;
+    quill.deleteText(m.index, m.length, 'user');
+    quill.insertText(m.index, replacement, 'user');
+    collectFindMatches();
+    if (findMatches.length) {
+      if (findIndex >= findMatches.length) findIndex = 0;
+      selectCurrentMatch();
+    } else {
+      findCountEl.textContent = '0/0';
+    }
+    markDirty();
+  }
+
+  function replaceAll() {
+    collectFindMatches();
+    if (!findMatches.length) {
+      showToast('一致する文字列がありません', 'error', 1600);
+      return;
+    }
+    const replacement = replaceInput.value;
+    const count = findMatches.length;
+    // 後ろから置換してインデックスずれを防ぐ
+    const matches = findMatches.slice().reverse();
+    matches.forEach((m) => {
+      quill.deleteText(m.index, m.length, 'silent');
+      quill.insertText(m.index, replacement, 'silent');
+    });
+    collectFindMatches();
+    findCountEl.textContent = findMatches.length ? `${findIndex + 1}/${findMatches.length}` : '0/0';
+    markDirty();
+    updateCharCount();
+    showToast(`${count} 件を置換しました`, 'success', 1800);
+  }
+
+  $('#btn-find').addEventListener('click', () => openFindBar(false));
+  $('#btn-find-close').addEventListener('click', closeFindBar);
+  $('#btn-find-next').addEventListener('click', findNext);
+  $('#btn-find-prev').addEventListener('click', findPrev);
+  $('#btn-replace-one').addEventListener('click', replaceOne);
+  $('#btn-replace-all').addEventListener('click', replaceAll);
+  findInput.addEventListener('input', () => {
+    collectFindMatches();
+    if (findMatches.length) {
+      findIndex = 0;
+      selectCurrentMatch();
+    }
+  });
+  findCaseEl.addEventListener('change', () => {
+    collectFindMatches();
+    if (findMatches.length) selectCurrentMatch();
+  });
+  findInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (e.shiftKey) findPrev();
+      else findNext();
+    }
+  });
+  replaceInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      replaceOne();
+    }
+  });
+
   // 概要・想定も変更検知
   overviewEl.addEventListener('input', markDirty);
   assumptionsEl.addEventListener('input', markDirty);
@@ -1027,9 +1219,32 @@ ${quill.root.innerHTML}
 
     // キーボードショートカット
     document.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key === 's') {
         e.preventDefault();
         saveAll();
+        return;
+      }
+      if (mod && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        openFindBar(false);
+        return;
+      }
+      if (mod && (e.key === 'h' || e.key === 'H')) {
+        e.preventDefault();
+        openFindBar(true);
+        return;
+      }
+      if (e.key === 'F3') {
+        e.preventDefault();
+        if (findBar.classList.contains('hidden')) openFindBar(false);
+        if (e.shiftKey) findPrev();
+        else findNext();
+        return;
+      }
+      if (e.key === 'Escape' && !findBar.classList.contains('hidden')) {
+        e.preventDefault();
+        closeFindBar();
       }
     });
   }

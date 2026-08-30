@@ -29,13 +29,16 @@
         <h1 class="app-title">本文取り込みエディタ</h1>
       </div>
       <div class="header-right">
+        <button id="btn-find" class="btn btn-secondary" title="検索と置換 (Ctrl+F / Ctrl+H)">🔎 置換</button>
         <button id="btn-open-file" class="btn btn-secondary" title="保存したJSONファイルを開く">📂 開く</button>
         <button id="btn-save" class="btn btn-secondary" title="名前を付けて保存（Chrome/Edge推奨）">💾 保存</button>
         <button id="btn-export-html" class="btn btn-secondary" title="HTMLとしてダウンロード">📄 HTML</button>
         <button id="btn-export-txt" class="btn btn-secondary" title="テキストとしてダウンロード">📝 TXT</button>
         <button id="btn-clear" class="btn btn-danger" title="内容をクリア">🗑 クリア</button>
         <button id="btn-toggle-left" class="btn btn-icon" title="目次パネル切替">☰</button>
-        <button id="btn-toggle-right" class="btn btn-icon" title="サイドパネル切替">⚙</button>
+        <button id="btn-toggle-right" class="btn btn-icon btn-settings" title="サイドパネル切替">
+          <img src="img/setting_icon.png" alt="設定" class="settings-icon" />
+        </button>
       </div>
     </header>
 
@@ -57,6 +60,24 @@
 
       <!-- 中央: リッチテキストエディタ -->
       <main class="editor-area">
+        <div id="find-bar" class="find-bar hidden">
+          <div class="find-bar-row">
+            <input type="text" id="find-input" class="find-input" placeholder="検索する文字列" autocomplete="off" />
+            <span id="find-count" class="find-count">0/0</span>
+            <button type="button" id="btn-find-prev" class="btn-icon-sm" title="前へ (Shift+F3)">↑</button>
+            <button type="button" id="btn-find-next" class="btn-icon-sm" title="次へ (F3 / Enter)">↓</button>
+            <label class="find-option">
+              <input type="checkbox" id="find-case" />
+              Aa
+            </label>
+            <button type="button" id="btn-find-close" class="btn-icon-sm" title="閉じる (Esc)">✕</button>
+          </div>
+          <div class="find-bar-row">
+            <input type="text" id="replace-input" class="find-input" placeholder="置換後の文字列" autocomplete="off" />
+            <button type="button" id="btn-replace-one" class="btn btn-sm btn-secondary" title="この箇所を置換">置換</button>
+            <button type="button" id="btn-replace-all" class="btn btn-sm btn-secondary" title="すべて置換">すべて置換</button>
+          </div>
+        </div>
         <div id="editor-toolbar"></div>
         <div id="editor" class="editor"></div>
         <div class="editor-status">
@@ -117,7 +138,7 @@
           <ul class="help-list">
             <li>左上の「本文から取り込み」でPDF/TXTを読み込み</li>
             <li>ツールバーで太字・斜体・色・コードブロックを適用</li>
-            <li>Ctrl+Alt+1/2/3 で見出し、Ctrl+Alt+0 で解除</li>
+            <li>Ctrl+F 検索 / Ctrl+H 置換、Ctrl+Alt+1〜5 で見出し</li>
             <li>💾保存で名前を付けて保存（Chrome/Edge）</li>
             <li>📂開くで以前のJSONを復元</li>
             <li>保存は手動（💾保存 / Ctrl+S）のみ</li>
