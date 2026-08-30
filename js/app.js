@@ -99,6 +99,147 @@
     Quill.register(RubyBlot);
   }
 
+  function escapeAttr(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  function parseCheckCardText(text) {
+    const lines = String(text).replace(/\r\n/g, '\n').split('\n');
+    let title = '';
+    let mode = 'lead';
+    const lead = [];
+    const success = [];
+    const fail = [];
+
+    lines.forEach((raw) => {
+      const line = raw.replace(/\s+$/, '');
+      const trimmed = line.trim();
+      const titleMatch = trimmed.match(/^[＜<]([^＞>]+)[＞>]$/);
+      if (titleMatch && !title) {
+        title = titleMatch[1].trim();
+        return;
+      }
+      if (/^成功[：:]/.test(trimmed)) {
+        mode = 'success';
+        const rest = trimmed.replace(/^成功[：:]\s*/, '');
+        if (rest) success.push(rest);
+        return;
+      }
+      if (/^失敗[：:]/.test(trimmed)) {
+        mode = 'fail';
+        const rest = trimmed.replace(/^失敗[：:]\s*/, '');
+        if (rest) fail.push(rest);
+        return;
+      }
+      if (mode === 'success') success.push(line);
+      else if (mode === 'fail') fail.push(line);
+      else if (trimmed) lead.push(line);
+    });
+
+    return {
+      title: title || '判定',
+      lead: lead.join('\n').trim(),
+      success: success.join('\n').trim(),
+      fail: fail.join('\n').trim()
+    };
+  }
+
+  function buildCheckCardNode(value, node) {
+    const data = value || { title: '判定', lead: '', success: '', fail: '' };
+    node.className = 'check-card';
+    node.setAttribute('contenteditable', 'false');
+    node.dataset.payload = JSON.stringify(data);
+
+    const copySvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+
+    const leadHtml = data.lead
+      ? `<div class="check-card-lead">${escapeHtml(data.lead).replace(/\n/g, '<br>')}</div>`
+      : '';
+    const successHtml = data.success
+      ? `<div class="check-card-row success">
+           <span class="check-badge success">成功</span>
+           <div class="check-card-body">${escapeHtml(data.success).replace(/\n/g, '<br>')}</div>
+           <button type="button" class="check-copy" data-copy="success" title="成功をコピー">${copySvg}</button>
+         </div>`
+      : '';
+    const failHtml = data.fail
+      ? `<div class="check-card-row fail">
+           <span class="check-badge fail">失敗</span>
+           <div class="check-card-body">${escapeHtml(data.fail).replace(/\n/g, '<br>')}</div>
+           <button type="button" class="check-copy" data-copy="fail" title="失敗をコピー">${copySvg}</button>
+         </div>`
+      : '';
+
+    node.innerHTML = `
+      <div class="check-card-header">
+        <span class="check-card-title">&lt;${escapeHtml(data.title)}&gt;</span>
+        <button type="button" class="check-copy" data-copy="all" title="カード全体をコピー">${copySvg}</button>
+      </div>
+      ${leadHtml}
+      ${successHtml}
+      ${failHtml}
+    `;
+    return node;
+  }
+
+  function registerCheckCardBlot() {
+    const BlockEmbed = Quill.import('blots/block/embed');
+    class CheckCardBlot extends BlockEmbed {
+      static create(value) {
+        const node = super.create();
+        return buildCheckCardNode(value, node);
+      }
+      static value(node) {
+        try {
+          return JSON.parse(node.dataset.payload || '{}');
+        } catch (e) {
+          return { title: '判定', lead: '', success: '', fail: '' };
+        }
+      }
+    }
+    CheckCardBlot.blotName = 'checkCard';
+    CheckCardBlot.tagName = 'DIV';
+    CheckCardBlot.className = 'check-card';
+    Quill.register(CheckCardBlot);
+  }
+
+  function copyTextSafe(text) {
+    const value = text || '';
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(value);
+    }
+    const ta = document.createElement('textarea');
+    ta.value = value;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    return Promise.resolve();
+  }
+
+  function applyCheckCard() {
+    if (!quill) return;
+    const range = quill.getSelection(true);
+    if (!range || range.length === 0) {
+      showToast('判定文を選択してから実行してください', 'error', 2200);
+      return;
+    }
+    const raw = quill.getText(range.index, range.length);
+    const data = parseCheckCardText(raw);
+    if (!data.success && !data.fail) {
+      showToast('「成功：」「失敗：」を含む文章を選択してください', 'error', 2800);
+      return;
+    }
+    quill.deleteText(range.index, range.length, 'user');
+    quill.insertEmbed(range.index, 'checkCard', data, 'user');
+    quill.insertText(range.index + 1, '\n', 'user');
+    markDirty();
+  }
+
   function applyRuby() {
     if (!quill) return;
     const range = quill.getSelection(true);
@@ -118,6 +259,7 @@
   // ===== Quill 初期化 =====
   function initQuill() {
     registerRubyBlot();
+    registerCheckCardBlot();
     const toolbarOptions = [
       [{ header: [1, 2, 3, 4, 5, false] }],
       ['bold', 'italic', 'underline', 'strike'],
@@ -1056,6 +1198,32 @@ applyCodeColors();
   $('#btn-open-file').addEventListener('click', openSavedFile);
   const btnRuby = $('#btn-ruby');
   if (btnRuby) btnRuby.addEventListener('click', applyRuby);
+  const btnCheckCard = $('#btn-check-card');
+  if (btnCheckCard) btnCheckCard.addEventListener('click', applyCheckCard);
+
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest && e.target.closest('.check-copy');
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const card = btn.closest('.check-card');
+    if (!card) return;
+    let payload = {};
+    try { payload = JSON.parse(card.dataset.payload || '{}'); } catch (err) {}
+    const kind = btn.getAttribute('data-copy');
+    let text = '';
+    if (kind === 'success') text = payload.success || '';
+    else if (kind === 'fail') text = payload.fail || '';
+    else {
+      text = [
+        payload.title ? `＜${payload.title}＞` : '',
+        payload.lead || '',
+        payload.success ? `成功：${payload.success}` : '',
+        payload.fail ? `失敗：${payload.fail}` : ''
+      ].filter(Boolean).join('\n');
+    }
+    copyTextSafe(text).then(() => showToast('コピーしました', 'success', 1400));
+  });
 
   // ===== 検索・置換 =====
   const findBar = $('#find-bar');
