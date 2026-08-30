@@ -166,30 +166,32 @@
     quill.focus();
   }
 
-  // ===== コードブロックを軽量に適用 =====
+  // ===== コードブロックを行単位で適用（先頭空行・末尾行のはみ出しを防ぐ） =====
   function applyCodeBlockLight() {
     if (!quill) return;
     const range = quill.getSelection(true);
     if (!range) return;
 
-    // すでにコードブロックなら解除
-    const formats = quill.getFormat(range);
-    if (formats['code-block']) {
-      quill.format('code-block', false);
-      return;
+    // 選択を行の先頭〜行末（改行含む）まで広げる
+    const fullText = quill.getText();
+    let start = range.index;
+    let end = range.index + Math.max(range.length, 0);
+
+    while (start > 0 && fullText.charAt(start - 1) !== '\n') {
+      start--;
+    }
+    // 末尾が行の途中なら行末まで含める
+    if (end < fullText.length) {
+      const nextNl = fullText.indexOf('\n', end);
+      end = nextNl === -1 ? fullText.length : nextNl + 1;
     }
 
-    // 選択範囲が空なら通常のトグル
-    if (range.length === 0) {
-      quill.format('code-block', true);
-      return;
-    }
+    const length = Math.max(end - start, 1);
+    const formats = quill.getFormat(start, length);
+    const enable = !formats['code-block'];
 
-    // 大きな選択は「削除＋一括挿入」の方が Quill の行ごと処理より軽い
-    const text = quill.getText(range.index, range.length);
-    quill.deleteText(range.index, range.length, 'user');
-    quill.insertText(range.index, text.replace(/\n+$/, ''), 'code-block', true, 'user');
-    quill.insertText(range.index + text.replace(/\n+$/, '').length, '\n', 'user');
+    // ブロック書式は formatLine が正しい（delete+insert だと行が割れる）
+    quill.formatLine(start, length, 'code-block', enable);
   }
 
   const COPY_ICON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
